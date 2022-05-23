@@ -17,23 +17,7 @@ app.handle("collectMood", (conv) => {
   dateTime += (currentDate.getMonth()+1) + "/" + currentDate.getFullYear();
 
   conv.user.params.date = dateTime;
-
-  // get data (will change to hash map?)
-  if (conv.intent.params.chosenMood) {
-    conv.user.params.mood = conv.intent.params.chosenMood.original;
-  } else {
-    conv.user.params.mood = conv.session.params.todaysMood;
-  }
-});
-
-app.handle("showData", (conv) => {
-  let data = "This is the last thing you have logged on ";
-  data += conv.user.params.date + ":\n";
-  data += "Your mood was " + conv.user.params.mood + ".\n";
-  data += "You got " + conv.user.params.sleep + " of sleep.\n";
-  data += "You had " + conv.user.params.water + " of water.\n And ";
-  data += "you were " + conv.user.params.exercise + " active.";
-  conv.add(data);
+  conv.user.params.mood = conv.session.params.todaysMood;
 });
 
 app.handle("collectWaterIntake", (conv) => {
@@ -45,17 +29,19 @@ app.handle("collectHoursOfSleep", (conv) => {
 });
 
 app.handle("collectExercise", (conv) => {
-  conv.user.params.exercise = conv.session.params.didExercise;
+  conv.user.params.exercise = conv.session.params.exercise;
 });
 
-app.handle("testFirestore", (conv) => {
-  const users = db.collection("user1");
-  const snapshot = users;
+app.handle("sendDataToDB", (conv) => {
+  conv.add("Saved: " + conv.user.params.exercise);
+});
 
-  return snapshot.get().then((snapshot) => {
-    console.log("New: " + snapshot.docs[0].data().mood);
-    conv.user.params.snapshot = snapshot.docs[0].data().mood;
-  });
+app.handle("sendToGP", (conv) => {
+  conv.add("tbd");
+});
+
+app.handle("viewLog", (conv) => {
+  conv.add("tbd");
 });
 
 app.handle("getAnalysisFromDB", (conv) => {
