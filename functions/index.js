@@ -1,6 +1,5 @@
 // Actions SDK
 const {conversation} = require("@assistant/conversation");
-
 const app = conversation({
   debug: true,
   clientId: "591618152780-8r7novrnehq8oh2n1nn89f013j5ij6fh.apps.googleusercontent.com",
