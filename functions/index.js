@@ -13,75 +13,87 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
 
-app.handle("collectMood", (conv) => {
-  conv.user.params.mood = conv.session.params.todaysMood;
-});
-
-app.handle("collectWaterIntake", (conv) => {
-  conv.user.params.water = conv.session.params.water_intake;
-});
-
-app.handle("collectHoursOfSleep", (conv) => {
-  conv.user.params.sleep = conv.session.params.hours_of_sleep;
-});
-
-app.handle("collectExercise", (conv) => {
-  conv.user.params.exercise = conv.session.params.exercise;
+app.handle("init", (conv) => {
+  // check if they have a user id in user storage if not then most likely a new user
+  // if there is no assigned id, check if the user's email is stored in db, if not, then add new user doc
+  // if email is stored in db, then assign uid to user id
+  if (conv.user.params.uid == "" || !conv.user.params.uid) {
+    const userEmail = conv.user.params.tokenPayload.email;
+    return db.collection("users").where("email", "==", userEmail).get().then((snapshot) => {
+      if (snapshot.empty) {
+        return db.collection("users").add({
+          email: userEmail,
+        }).then((docRef) => {
+          conv.user.params.uid = docRef.id;
+        });
+      } else {
+        conv.user.params.uid = snapshot.docs[0].id;
+      }
+    });
+  } else {
+    // get most recent analysis
+    return db.collection("users").doc(conv.user.params.uid).collection("analysis").get().then((snapshot) => {
+      // console.log("doc length: ", snapshot.docs.length);
+      if (snapshot.docs.length > 0) {
+        conv.session.params.analysis = snapshot.docs[0].data().data;
+      }
+    });
+  }
 });
 
 app.handle("sendDataToDB", (conv) => {
-  /* const newLog = {
-    mood: conv.user.params.mood,
-    water: conv.user.params.water,
-    sleep: conv.user.params.sleep,
-    activity: conv.user.params.exercise,
-  };*/
+  return db.collection("users").doc(conv.user.params.uid).collection("mood_data").add({
+    date: admin.firestore.Timestamp.now(),
+    mood: conv.session.params.mood_today,
+    water: conv.session.params.water_intake,
+    sleep: conv.session.params.hours_of_sleep,
+    activity: conv.session.params.exercise,
+  }).then((docRef) => {
+    console.log("Added mood data with ID: ", docRef.id);
+  });
+});
+
+app.handle("checkLog", (conv) => {
+  const today = admin.firestore.Timestamp.now().toDate();
+  return db.collection("users").doc("user1").collection("mood_data")
+      .orderBy("date", "desc").get().then((snapshot) => {
+        console.log("doc: ", snapshot.docs[0].id);
+        console.log("Compare: ", today > snapshot.docs[0].data().date.toDate());
+        conv.session.params.hasLoggedToday = today > snapshot.docs[0].data().date.toDate();
+      });
 });
 
 app.handle("sendToGP", (conv) => {
   conv.add("tbd");
+  // check if gp email is in db
+  // if not then user must enter it
+  // else then send email
 });
 
 app.handle("viewLog", (conv) => {
   conv.add("tbd");
 });
 
-app.handle("getAnalysisFromDB", (conv) => {
-  const analysis = db.collection("user1/analysis");
-
-  return analysis.get().then((snapshot) => {
-    const newAnalysis = snapshot.docs[0].data().data;
-    conv.session.params.analysis = newAnalysis;
-  });
-});
-
-app.handle("init", (conv) => {
-  // check if user has logged and save in session storage
-
-  // get most recent analysis from db
-
-  // get user id and save to user storage if not already saved
-
-  console.log(conv.headers.authorization.email);
-  if (!conv.user.params.uid) {
-    conv.user.params.uid = admin.auth().getUserByEmail(conv.headers.authorization.email);
-  }
-
-  if (!conv.user.params.name) {
-    conv.user.params.name = conv.headers.authorization.given_name;
-  }
-});
-
 app.handle("deliverAnalysis", (conv) => {
-  conv.add(conv.session.params.analysis.join(" "));
+  if (conv.session.params.analysis) {
+    conv.add(conv.session.params.analysis.join(" "));
+  } else {
+    conv.add("Sorry there seems to be a problem with obtaining your analysis.");
+    conv.add("If you are a new user, you will get a new analysis next month.");
+  }
 });
 
 exports.analyseMoodData = functions.pubsub.schedule("0 0 1 * *")
     .onRun((context) => {
+      // iterate through each user
+      // get mood data within a certain time frame
+      // do analysis
+      // store in user's analysis collection
+      /*
       const data = {
         analysis: ["a1", "a2", "a3"],
       };
-      return db.collection("analysis").doc("test").set(data);
+       return db.collection("analysis").doc("test").set(data);*/
     });
 
 
