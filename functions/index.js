@@ -4,11 +4,14 @@ const app = conversation({
   debug: true,
   clientId: "591618152780-8r7novrnehq8oh2n1nn89f013j5ij6fh.apps.googleusercontent.com",
 });
-//  const https = requre("https");
 
 // Firebase SDK
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+
+// nodemailer
+const nodemailer = require("nodemailer");
+// const cors = require("cors")({origin: true});
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -83,28 +86,97 @@ app.handle("deliverAnalysis", (conv) => {
 });
 
 app.handle("sendToGP", (conv) => {
-  conv.add("tbd");
   // check if gp email is in db
   // if not then user must enter it
   // else then send email
+  this.sendEmail();
 });
 
 app.handle("viewLog", (conv) => {
   conv.add("tbd");
 });
 
-exports.analyseMoodData = functions.pubsub.schedule("0 0 1 * *")
-    .onRun((context) => {
+exports.analyseMoodData = functions.pubsub.schedule("0 0 1 1 *")
+    .onRun(async (context) => {
       // iterate through each user
       // get mood data within a certain time frame
       // do analysis
       // store in user's analysis collection
-      /*
-      const data = {
-        analysis: ["a1", "a2", "a3"],
-      };
-       return db.collection("analysis").doc("test").set(data);*/
+      const analysis = [];
+      const users = db.collection("users");
+      await users.doc("user1").collection("mood_data").where("sleep", "<", 8).get().then((snapshot) => {
+        const mood = [];
+        snapshot.forEach((doc) => {
+          mood.push(doc.data().mood);
+        });
+
+        const topMood = getMostFreq(mood);
+        // let a = "You are more likely to log " + topMood + " when you get less than 8 hours of sleep.";
+        analysis.push("You are more likely to log " + topMood + " when you get less than 8 hours of sleep.");
+      });
+
+      await users.doc("user1").collection("mood_data").where("activity", "==", "mild").get().then((snapshot) => {
+        if (!snapshot.empty) {
+          const mood = [];
+          const sleep = [];
+          snapshot.forEach((doc) => {
+            mood.push(doc.data().mood);
+            sleep.push(doc.data().sleep);
+          });
+
+          const topSleep = getMostFreq(sleep);
+          analysis.push("When you sleep " + topSleep + " hours, you are more likely to be mildly active.");
+          analysis.push("You are more likely to log " + getMostFreq(mood) + " when you are mildly active.");
+        }
+      });
+
+      db.collection("test_analysis").add({
+        date: admin.firestore.Timestamp.now(),
+        analysis: analysis,
+      }).then((newDoc) => {
+        console.log("added analysis", newDoc.id);
+      });
     });
 
+exports.sendEmail = functions.https.onRequest((req, res) => {
+  const key = require("./moodLoggerEmailKey.json");
+  const transporter = nodemailer.createTransport({
+    host: "smtp-relay.sendinblue.com",
+    port: 587,
+    auth: {
+      user: key.user,
+      pass: key.pass,
+    },
+  });
+
+  const dest = "ciaragil98@gmail.com";
+
+  const mail = {
+    from: "gilsenci@tcd.ie",
+    to: dest,
+    subject: "From Mood Logger",
+    text: "testing email from firebase",
+  };
+
+  return transporter.sendMail(mail, (error, info) => {
+    if (error) {
+      console.log(error.toString());
+    }
+  });
+});
+
+/**
+ * Helper function to analyseMoodData, finds most frequent element in the given array.
+ * @param {Array} array - array
+ * @return {(number|string)} - most frequent element
+ */
+function getMostFreq(array) {
+  // https://javascript.plainenglish.io/how-to-find-the-most-frequent-element-in-an-array-in-javascript-c85119dc78d2
+  const hashmap = array.reduce((acc, val) => {
+    acc[val] = (acc[val] || 0) + 1;
+    return acc;
+  }, {});
+  return Object.keys(hashmap).reduce((a, b) => hashmap[a] > hashmap[b] ? a : b);
+}
 
 exports.ActionsOnGoogleFulfillment = functions.https.onRequest(app);
