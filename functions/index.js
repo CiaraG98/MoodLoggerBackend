@@ -100,21 +100,24 @@ exports.analyseMoodData = functions.pubsub.schedule("0 0 1 1 *")
     .onRun(async (context) => {
       // iterate through each user
       // get mood data within a certain time frame
-      // do analysis
-      // store in user's analysis collection
+
       const analysis = [];
       const users = db.collection("users");
-      await users.doc("user1").collection("mood_data").where("sleep", "<", 8).get().then((snapshot) => {
-        const mood = [];
-        snapshot.forEach((doc) => {
-          mood.push(doc.data().mood);
-        });
 
-        const topMood = getMostFreq(mood);
-        // let a = "You are more likely to log " + topMood + " when you get less than 8 hours of sleep.";
-        analysis.push("You are more likely to log " + topMood + " when you get less than 8 hours of sleep.");
+      // sleep & mood
+      await users.doc("user1").collection("mood_data").where("sleep", "<", 8).get().then((snapshot) => {
+        if (!snapshot.empty) {
+          const mood = [];
+          snapshot.forEach((doc) => {
+            mood.push(doc.data().mood);
+          });
+
+          const topMood = getMostFreq(mood);
+          analysis.push("You are more likely to log " + topMood + " when you get less than 8 hours of sleep.");
+        }
       });
 
+      // activity & sleep, mood
       await users.doc("user1").collection("mood_data").where("activity", "==", "mild").get().then((snapshot) => {
         if (!snapshot.empty) {
           const mood = [];
@@ -127,6 +130,54 @@ exports.analyseMoodData = functions.pubsub.schedule("0 0 1 1 *")
           const topSleep = getMostFreq(sleep);
           analysis.push("When you sleep " + topSleep + " hours, you are more likely to be mildly active.");
           analysis.push("You are more likely to log " + getMostFreq(mood) + " when you are mildly active.");
+        }
+      });
+
+      // water & activity, mood
+      await users.doc("user1").collection("mood_data").where("water", "<", 8).get().then((snapshot) => {
+        if (!snapshot.empty) {
+          const mood = [];
+          const activity = [];
+
+          snapshot.forEach((doc) => {
+            mood.push(doc.data().mood);
+            activity.push(doc.data().activity);
+          });
+
+          const topMood = getMostFreq(mood);
+          const topActivity = getMostFreq(activity);
+
+          analysis.push("You are more likely to log " + topMood + " when you drink less than 8 glasses of water a day.");
+          analysis.push("You are usually " + topActivity + " activity when you drink more than 8 glasses of water a day.");
+        }
+      });
+
+      // day & bad mood
+      await users.doc("user1").collection("mood_data").where("mood", "==", "bad").get().then((snapshot) => {
+        if (!snapshot.empty) {
+          const days = [];
+          snapshot.forEach((doc) => {
+            days.push(doc.data().date.toDate().toLocaleString("default", {weekday: "long"}));
+          });
+
+          const topDay = getMostFreq(days);
+          analysis.push("On " + topDay + "s you usually log bad moods");
+        }
+      });
+
+      // day most active
+      await users.doc("user1").collection("mood_data").where("activity", "in", ["moderate", "very active"]).get().then((snapshot) => {
+        if (!snapshot.empty) {
+          const days = [];
+          const mood = [];
+          snapshot.forEach((doc) => {
+            days.push(doc.data().date.toDate().toLocaleString("default", {weekday: "long"}));
+            mood.push(doc.data().mood);
+          });
+
+          const topDay = getMostFreq(days);
+          const topMood = getMostFreq(mood);
+          analysis.push("You are usually moderately or very active on " + topDay + "s, and on these days you usually log " + topMood + " moods.");
         }
       });
 

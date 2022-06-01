@@ -12,7 +12,7 @@ module.exports = {
     "google",
   ],
   rules: {
-    "max-len": ["error", {"code": 120}],
+    "max-len": ["error", {"code": 200}],
     "quotes": ["error", "double"],
     "linebreak-style": 0,
   },
