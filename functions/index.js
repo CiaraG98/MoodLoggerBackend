@@ -11,7 +11,6 @@ const admin = require("firebase-admin");
 
 // nodemailer
 const nodemailer = require("nodemailer");
-// const cors = require("cors")({origin: true});
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -86,110 +85,139 @@ app.handle("deliverAnalysis", (conv) => {
 });
 
 app.handle("sendToGP", (conv) => {
-  // check if gp email is in db
-  // if not then user must enter it
-  // else then send email
   this.sendEmail();
+  return db.collection("users").doc(conv.user.params.uid).get().then((snapshot) => {
+    if (!snapshot.empty) {
+      console.log("GP EMAIL:", snapshot.docs[0].data());
+      if (snapshot.docs[0].data().GP_email) {
+        conv.add("Alright, sending your mood data to ", snapshot.docs[0].data().GP_email);
+      } else {
+        conv.add("First, please enter your GP's email address.");
+      }
+    }
+  });
 });
 
 app.handle("viewLog", (conv) => {
   conv.add("tbd");
 });
 
-exports.analyseMoodData = functions.pubsub.schedule("0 0 1 1 *")
+exports.analyseMoodData = functions.pubsub.schedule("every 10 minutes")
     .onRun(async (context) => {
-      // iterate through each user
-      // get mood data within a certain time frame
+      const lessOrMore = [">", "<"];
+      const activity = ["mild, moderate"];
+      const sleep = [6, 8];
+      const glasses = [6, 8];
+      const moods = ["okay", "bad", "good"];
 
-      const analysis = [];
-      const users = db.collection("users");
+      // from https://www.w3resource.com/javascript-exercises/javascript-array-exercise-35.php
+      const randomSymbol = lessOrMore[Math.floor(Math.random()*lessOrMore.length)];
+      const randomActivity = activity[Math.floor(Math.random()*activity.length)];
+      const randomSleep = sleep[Math.floor(Math.random()*sleep.length)];
+      const randomGlasses = glasses[Math.floor(Math.random()*glasses.length)];
+      const randomMood = moods[Math.floor(Math.random()*moods.length)];
 
-      // sleep & mood
-      await users.doc("user1").collection("mood_data").where("sleep", "<", 8).get().then((snapshot) => {
-        if (!snapshot.empty) {
-          const mood = [];
-          snapshot.forEach((doc) => {
-            mood.push(doc.data().mood);
-          });
-
-          const topMood = getMostFreq(mood);
-          analysis.push("You are more likely to log " + topMood + " when you get less than 8 hours of sleep.");
-        }
-      });
-
-      // activity & sleep, mood
-      await users.doc("user1").collection("mood_data").where("activity", "==", "mild").get().then((snapshot) => {
-        if (!snapshot.empty) {
-          const mood = [];
-          const sleep = [];
-          snapshot.forEach((doc) => {
-            mood.push(doc.data().mood);
-            sleep.push(doc.data().sleep);
-          });
-
-          const topSleep = getMostFreq(sleep);
-          analysis.push("When you sleep " + topSleep + " hours, you are more likely to be mildly active.");
-          analysis.push("You are more likely to log " + getMostFreq(mood) + " when you are mildly active.");
-        }
-      });
-
-      // water & activity, mood
-      await users.doc("user1").collection("mood_data").where("water", "<", 8).get().then((snapshot) => {
-        if (!snapshot.empty) {
-          const mood = [];
-          const activity = [];
-
-          snapshot.forEach((doc) => {
-            mood.push(doc.data().mood);
-            activity.push(doc.data().activity);
-          });
-
-          const topMood = getMostFreq(mood);
-          const topActivity = getMostFreq(activity);
-
-          analysis.push("You are more likely to log " + topMood + " when you drink less than 8 glasses of water a day.");
-          analysis.push("You are usually " + topActivity + " activity when you drink more than 8 glasses of water a day.");
-        }
-      });
-
-      // day & bad mood
-      await users.doc("user1").collection("mood_data").where("mood", "==", "bad").get().then((snapshot) => {
-        if (!snapshot.empty) {
-          const days = [];
-          snapshot.forEach((doc) => {
-            days.push(doc.data().date.toDate().toLocaleString("default", {weekday: "long"}));
-          });
-
-          const topDay = getMostFreq(days);
-          analysis.push("On " + topDay + "s you usually log bad moods");
-        }
-      });
-
-      // day most active
-      await users.doc("user1").collection("mood_data").where("activity", "in", ["moderate", "very active"]).get().then((snapshot) => {
-        if (!snapshot.empty) {
-          const days = [];
-          const mood = [];
-          snapshot.forEach((doc) => {
-            days.push(doc.data().date.toDate().toLocaleString("default", {weekday: "long"}));
-            mood.push(doc.data().mood);
-          });
-
-          const topDay = getMostFreq(days);
-          const topMood = getMostFreq(mood);
-          analysis.push("You are usually moderately or very active on " + topDay + "s, and on these days you usually log " + topMood + " moods.");
-        }
-      });
-
-      db.collection("test_analysis").add({
-        date: admin.firestore.Timestamp.now(),
-        analysis: analysis,
-      }).then((newDoc) => {
-        console.log("added analysis", newDoc.id);
-      });
+      startAnalysis(randomSymbol, randomActivity, randomSleep, randomGlasses, randomMood);
     });
 
-exports.sendEmail = functions.https.onRequest((req, res) => {
+/**
+ * Does analysis
+ * @param {string} lm - less or more
+ * @param {string} act - less or more
+ * @param {number} hours - less or more
+ * @param {number} glasses - less or more
+ * @param {string} m - less or more
+ */
+async function startAnalysis(lm, act, hours, glasses, m) {
+  // iterate through each user
+  // get mood data within a certain time frame
+
+  const analysis = [];
+  const users = db.collection("users");
+
+  // sleep & mood
+  await users.doc("user1").collection("mood_data").where("sleep", lm, hours).get().then((snapshot) => {
+    if (!snapshot.empty) {
+      const mood = [];
+      snapshot.forEach((doc) => {
+        mood.push(doc.data().mood);
+      });
+
+      const topMood = getMostFreq(mood);
+      analysis.push("You are more likely to log " + topMood + " when you get less than 8 hours of sleep.");
+    }
+  });
+
+  // activity & sleep, mood
+  await users.doc("user1").collection("mood_data").where("activity", "==", act).get().then((snapshot) => {
+    if (!snapshot.empty) {
+      const mood = [];
+      const sleep = [];
+      snapshot.forEach((doc) => {
+        mood.push(doc.data().mood);
+        sleep.push(doc.data().sleep);
+      });
+
+      const topSleep = getMostFreq(sleep);
+      analysis.push("When you sleep " + topSleep + " hours, you are more likely to be mildly active.");
+      analysis.push("You are more likely to log " + getMostFreq(mood) + " when you are mildly active.");
+    }
+  });
+
+  // water & activity, mood
+  await users.doc("user1").collection("mood_data").where("water", lm, glasses).get().then((snapshot) => {
+    if (!snapshot.empty) {
+      const mood = [];
+      const activity = [];
+
+      snapshot.forEach((doc) => {
+        mood.push(doc.data().mood);
+        activity.push(doc.data().activity);
+      });
+
+      const topMood = getMostFreq(mood);
+      const topActivity = getMostFreq(activity);
+
+      analysis.push("You are more likely to log " + topMood + " when you drink less than 8 glasses of water a day.");
+      analysis.push("You are usually " + topActivity + " active when you drink more than 8 glasses of water a day.");
+    }
+  });
+
+  // day & bad mood
+  await users.doc("user1").collection("mood_data").where("mood", "==", m).get().then((snapshot) => {
+    if (!snapshot.empty) {
+      const days = [];
+      snapshot.forEach((doc) => {
+        days.push(doc.data().date.toDate().toLocaleString("default", {weekday: "long"}));
+      });
+
+      const topDay = getMostFreq(days);
+      analysis.push("On " + topDay + "s you usually log bad moods");
+    }
+  });
+
+  // day most active
+  await users.doc("user1").collection("mood_data").where("activity", "==", act).get().then((snapshot) => {
+    if (!snapshot.empty) {
+      const days = [];
+      snapshot.forEach((doc) => {
+        days.push(doc.data().date.toDate().toLocaleString("default", {weekday: "long"}));
+      });
+
+      const topDay = getMostFreq(days);
+      analysis.push("You are usually " + act + "ly active on" + topDay + "s.");
+    }
+  });
+
+  db.collection("test_analysis").add({
+    date: admin.firestore.Timestamp.now(),
+    analysis: analysis,
+  }).then((newDoc) => {
+    console.log("added analysis", newDoc.id);
+  });
+}
+
+exports.sendEmail = functions.https.onRequest(async (req, res) => {
   const key = require("./moodLoggerEmailKey.json");
   const transporter = nodemailer.createTransport({
     host: "smtp-relay.sendinblue.com",
@@ -201,12 +229,30 @@ exports.sendEmail = functions.https.onRequest((req, res) => {
   });
 
   const dest = "ciaragil98@gmail.com";
+  let style = "table {border-collapse: collapse; width: 100%;}";
+  style += "\ntd, th {border: 1px solid #dddddd; padding: 5px;}";
+  style += "\ntr:nth-child(even) { background-color: #dddddd; }";
+  let body = "<head><style>" + style + "</style></head><h1>Mood Logger Data</h1><br><p>Patient Email: gilsenci@tcd.ie</p>";
+  body += "<br><br><table><tr><th>Date</th><th>Mood</th><th>Water</th><th>Sleep</th><th>Activity</th></tr>";
+  await db.collection("users").doc("user1").collection("mood_data").get().then((snapshot) => {
+    if (!snapshot.empty) {
+      snapshot.forEach((doc) => {
+        const date = doc.data().date.toDate().toString().replace("GMT+0000 (Coordinated Universal Time)", "");
+        body += "<tr><td>" + date + "</td>";
+        body += "<td>" + doc.data().mood + "</td>";
+        body += "<td>" + doc.data().water + "</td>";
+        body += "<td>" + doc.data().sleep + "</td>";
+        body += "<td>" + doc.data().activity + "</td></tr>";
+      });
+    }
+    body += "</table>";
+  });
 
   const mail = {
     from: "gilsenci@tcd.ie",
     to: dest,
-    subject: "From Mood Logger",
-    text: "testing email from firebase",
+    subject: "New From Mood Logger",
+    html: body,
   };
 
   return transporter.sendMail(mail, (error, info) => {
