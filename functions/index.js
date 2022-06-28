@@ -16,6 +16,9 @@ const nodemailer = require("nodemailer");
 admin.initializeApp();
 const db = admin.firestore();
 
+// moment
+const moment = require("moment");
+
 app.handle("init", (conv) => {
   // check if they have a user id in user storage if not then most likely a new user
   if (conv.user.params.uid == "" || !conv.user.params.uid) {
@@ -50,8 +53,6 @@ app.handle("checkLog", (conv) => {
   const today = admin.firestore.Timestamp.now().toDate();
   return db.collection("users").doc(conv.user.params.uid).collection("mood_data")
       .orderBy("date", "desc").get().then((snapshot) => {
-        console.log("Dates: " + today.getDate().toString() + " " +
-          snapshot.docs[0].data().date.toDate().getDate().toString());
         conv.session.params.hasLoggedToday = today.getDate() == snapshot.docs[0].data().date.toDate().getDate();
       });
 });
@@ -123,9 +124,30 @@ app.handle("sendToGP", (conv) => {
 });
 
 app.handle("viewLog", (conv) => {
-  conv.add("tbd");
+  const dateInput = conv.session.params.dateToView;
+  const dateString = dateInput.year + "-" + dateInput.month + "-" + dateInput.day;
+
+  const startOf = moment(dateString).startOf().toDate();
+  const endOf = moment(startOf).endOf("day").toDate();
+
+  return db.collection("users").doc(conv.user.params.uid).collection("mood_data").where("date", ">", startOf)
+      .where("date", "<", endOf).get().then((snapshot) => {
+        if (snapshot.empty) {
+          conv.add("Sorry there is no record of a log on that date.");
+        } else {
+          const mood = snapshot.docs[0].data().mood;
+          const water = snapshot.docs[0].data().water;
+          const sleep = snapshot.docs[0].data().sleep;
+          const activity = snapshot.docs[0].data().activity;
+
+          let resp = "You logged: \nMood: " + mood + ".\nSleep: " + sleep;
+          resp += ".\nWater: " + water + ".\nActivity: " + activity;
+          conv.add(resp);
+        }
+      });
 });
 
+// 0 0 * * 0 --> Every 7 days
 exports.analyseMoodData = functions.pubsub.schedule("0 0 * * 0")
     .onRun(async (context) => {
       const lessOrMore = [">", "<"];
@@ -237,7 +259,7 @@ async function startAnalysis(lm, act, hours, glasses, m) {
         }
       });
 
-      db.collection(uid).collection("analysis").add({
+      db.collection("users").doc(uid).collection("analysis").add({
         date: admin.firestore.Timestamp.now(),
         analysis: analysis,
       }).then((newDoc) => {
