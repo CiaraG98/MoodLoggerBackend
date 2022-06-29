@@ -147,6 +147,32 @@ app.handle("viewLog", (conv) => {
       });
 });
 
+// log response
+
+const moodResponseGood = ["That's great!🌞\n", "🌞\n", "Wonderfull ☀️."];
+// const moodResponseOkay = [""];
+const moodResponseBad = ["That's too bad.", "I am sorry you are feeling this way 😥."];
+
+app.handle("reactToMood", (conv) => {
+  if (conv.session.params.mood_today == "good") {
+    conv.add(moodResponseGood[Math.floor(Math.random()*moodResponseGood.length)]);
+  } else if (conv.session.params.mood_today == "bad") {
+    conv.add(moodResponseBad[Math.floor(Math.random()*moodResponseBad.length)]);
+  }
+});
+
+// const sleepRessponseLow = ["Hmm that doesn't sound like a lot.", "Only"]
+const sleepRessponseHigh = ["That sounds like a good night's sleep.", "You must be well rested 😊."];
+app.handle("reactToSleep", (conv) => {
+  if (conv.session.params.hours_of_sleep < 7) {
+    conv.add("Hmm that doesn't sound like a lot.");
+  } else if (conv.session.params.hours_of_sleep >= 8 && conv.session.params.mood_today != "bad") {
+    conv.add(sleepRessponseHigh[Math.floor(Math.random()*sleepRessponseHigh.length)]);
+  } else if (conv.session.params.hours_of_sleep >= 10) {
+    conv.add("Hmm that sounds like too much sleep 😴.");
+  }
+});
+
 // 0 0 * * 0 --> Every 7 days
 exports.analyseMoodData = functions.pubsub.schedule("0 0 * * 0")
     .onRun(async (context) => {
