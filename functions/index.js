@@ -42,7 +42,7 @@ app.handle("init", (conv) => {
     return db.collection("users").doc(conv.user.params.uid).collection("analysis")
         .orderBy("date", "desc").get().then((snapshot) => {
           if (snapshot.docs.length > 0) {
-            conv.session.params.analysis = snapshot.docs[0].data().data;
+            conv.session.params.analysis = snapshot.docs[0].data().analysis;
           }
         });
   }
@@ -91,9 +91,10 @@ app.handle("sendDataToDB", (conv) => {
 app.handle("deliverAnalysis", (conv) => {
   if (conv.session.params.analysis) {
     conv.add(conv.session.params.analysis.join(" "));
+    conv.add("Would you like to use any other Mood Logger services?");
   } else {
-    conv.add("Sorry there seems to be a problem with obtaining your analysis.");
-    conv.add("If you are a new user, you will get a new analysis in 7 days.");
+    conv.add("Sorry there seems to be a problem with obtaining your analysis. If you are a new user, you will get a new analysis in 7 days.");
+    conv.add("Would you like to use any other Mood Logger services instead?");
   }
 });
 
@@ -116,6 +117,7 @@ app.handle("sendToGP", (conv) => {
         const userEmail = conv.user.params.tokenPayload.email;
         sendGPEmail(doc.data().GP_email, userName, userEmail, conv.user.params.uid);
         conv.add("Alright, sending your mood data to ", doc.data().GP_email);
+        conv.add("Would you like to use any other Mood Logger services?");
       } else {
         conv.add("Sorry there is a problem finding your gp's email. Please try again.");
       }
@@ -143,6 +145,7 @@ app.handle("viewLog", (conv) => {
           let resp = "You logged: \nMood: " + mood + ".\nSleep: " + sleep;
           resp += ".\nWater: " + water + ".\nActivity: " + activity;
           conv.add(resp);
+          conv.add("Would you like to use any other Mood Logger services?");
         }
       });
 });
@@ -161,15 +164,33 @@ app.handle("reactToMood", (conv) => {
   }
 });
 
-// const sleepRessponseLow = ["Hmm that doesn't sound like a lot.", "Only"]
-const sleepRessponseHigh = ["That sounds like a good night's sleep.", "You must be well rested 😊."];
+// const sleepRessponseLow = ["Hmm that doesn't sound like a lot."]
+const sleepResponseGood = ["That sounds like a good night's sleep.", "You must be well rested 😊."];
 app.handle("reactToSleep", (conv) => {
   if (conv.session.params.hours_of_sleep < 7) {
     conv.add("Hmm that doesn't sound like a lot.");
   } else if (conv.session.params.hours_of_sleep >= 8 && conv.session.params.mood_today != "bad") {
-    conv.add(sleepRessponseHigh[Math.floor(Math.random()*sleepRessponseHigh.length)]);
+    conv.add(sleepResponseGood[Math.floor(Math.random()*sleepResponseGood.length)]);
   } else if (conv.session.params.hours_of_sleep >= 10) {
     conv.add("Hmm that sounds like too much sleep 😴.");
+  }
+});
+
+const waterResponseGood = ["Yay hydration 😀!", "Nice work."];
+const waterResponseLow = ["Hmm you may need to drink more water.", "That's all?"];
+app.handle("reactToWater", (conv) => {
+  if (conv.session.params.water_intake >= 7) {
+    conv.add(waterResponseGood[Math.floor(Math.random()*waterResponseGood.length)]);
+  } else if (conv.session.params.water_intake < 7) {
+    conv.add(waterResponseLow[Math.floor(Math.random()*waterResponseLow.length)]);
+  }
+});
+
+app.handle("reactToActivity", (conv) => {
+  if (conv.session.params.exercise != "not active") {
+    conv.add("Nice work 🏅!");
+  } else {
+    conv.add("Hmm maybe tomorrow you try be more active.");
   }
 });
 
@@ -355,7 +376,7 @@ async function sendGPEmail(gpEmail, userName, userEmail, uid) {
  * @return {(number|string)} - most frequent element
  */
 function getMostFreq(array) {
-  // https://javascript.plainenglish.io/how-to-find-the-most-frequent-element-in-an-array-in-javascript-c85119dc78d2
+  // help from https://javascript.plainenglish.io/how-to-find-the-most-frequent-element-in-an-array-in-javascript-c85119dc78d2
   const hashmap = array.reduce((acc, val) => {
     acc[val] = (acc[val] || 0) + 1;
     return acc;
