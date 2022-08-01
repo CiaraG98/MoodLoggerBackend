@@ -90,7 +90,7 @@ app.handle("sendDataToDB", (conv) => {
 
 app.handle("deliverAnalysis", (conv) => {
   if (conv.session.params.analysis) {
-    conv.add(conv.session.params.analysis.join(" "));
+    conv.add("Okay here is your most recent analysis.\n", conv.session.params.analysis.join(" "));
     conv.add("Would you like to use any other Mood Logger services?");
   } else {
     conv.add("Sorry there seems to be a problem with obtaining your analysis. If you are a new user, you will get a new analysis in 7 days.");
@@ -116,8 +116,7 @@ app.handle("sendToGP", (conv) => {
         const userName = conv.user.params.tokenPayload.name;
         const userEmail = conv.user.params.tokenPayload.email;
         sendGPEmail(doc.data().GP_email, userName, userEmail, conv.user.params.uid);
-        conv.add("Alright, sending your mood data to ", doc.data().GP_email);
-        conv.add("Would you like to use any other Mood Logger services?");
+        conv.add("Alright, sending your mood data to " + doc.data().GP_email + ".\nWould you like to use any other Mood Logger services?");
       } else {
         conv.add("Sorry there is a problem finding your gp's email. Please try again.");
       }
@@ -144,8 +143,7 @@ app.handle("viewLog", (conv) => {
 
           let resp = "You logged: \nMood: " + mood + ".\nSleep: " + sleep;
           resp += ".\nWater: " + water + ".\nActivity: " + activity;
-          conv.add(resp);
-          conv.add("Would you like to use any other Mood Logger services?");
+          conv.add(resp, ".\nWould you like to use any other Mood Logger services?");
         }
       });
 });
@@ -153,7 +151,6 @@ app.handle("viewLog", (conv) => {
 // log response
 
 const moodResponseGood = ["That's great!🌞\n", "🌞\n", "Wonderfull ☀️."];
-// const moodResponseOkay = [""];
 const moodResponseBad = ["That's too bad.", "I am sorry you are feeling this way 😥."];
 
 app.handle("reactToMood", (conv) => {
