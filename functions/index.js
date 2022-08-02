@@ -90,7 +90,7 @@ app.handle("sendDataToDB", (conv) => {
 
 app.handle("deliverAnalysis", (conv) => {
   if (conv.session.params.analysis) {
-    conv.add("Okay here is your most recent analysis.\n", conv.session.params.analysis.join(" "));
+    conv.add("Okay here is your most recent analysis.\n" + conv.session.params.analysis.join(" "));
     conv.add("Would you like to use any other Mood Logger services?");
   } else {
     conv.add("Sorry there seems to be a problem with obtaining your analysis. If you are a new user, you will get a new analysis in 7 days.");
@@ -142,7 +142,7 @@ app.handle("viewLog", (conv) => {
           const activity = snapshot.docs[0].data().activity;
 
           let resp = "You logged: \nMood: " + mood + ".\nSleep: " + sleep;
-          resp += ".\nWater: " + water + ".\nActivity: " + activity;
+          resp += " hours.\nWater: " + water + " glasses.\nActivity: " + activity;
           conv.add(resp, ".\nWould you like to use any other Mood Logger services?");
         }
       });
@@ -235,8 +235,15 @@ async function startAnalysis(lm, act, hours, glasses, m) {
             mood.push(doc.data().mood);
           });
 
+          let symbol = "";
+          if (lm == ">") {
+            symbol = "more than";
+          } else {
+            symbol = "less than";
+          }
+
           const topMood = getMostFreq(mood);
-          analysis.push("You are more likely to log " + topMood + " when you get less than 8 hours of sleep.");
+          analysis.push("You are more likely to log " + topMood + " when you get " + symbol + " " + hours + " hours of sleep.");
         }
       });
 
