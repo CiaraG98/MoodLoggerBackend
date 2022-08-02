@@ -149,7 +149,6 @@ app.handle("viewLog", (conv) => {
 });
 
 // log response
-
 const moodResponseGood = ["That's great!🌞\n", "🌞\n", "Wonderfull ☀️."];
 const moodResponseBad = ["That's too bad.", "I am sorry you are feeling this way 😥."];
 
@@ -161,7 +160,6 @@ app.handle("reactToMood", (conv) => {
   }
 });
 
-// const sleepRessponseLow = ["Hmm that doesn't sound like a lot."]
 const sleepResponseGood = ["That sounds like a good night's sleep.", "You must be well rested 😊."];
 app.handle("reactToSleep", (conv) => {
   if (conv.session.params.hours_of_sleep < 7) {
@@ -253,8 +251,8 @@ async function startAnalysis(lm, act, hours, glasses, m) {
           });
 
           const topSleep = getMostFreq(sleep);
-          analysis.push("When you sleep " + topSleep + " hours, you are more likely to be mildly active.");
-          analysis.push("You are more likely to log " + getMostFreq(mood) + " when you are mildly active.");
+          analysis.push("When you sleep " + topSleep + " hours, you are more likely to be " + act + "ly active.");
+          analysis.push("You are more likely to log " + getMostFreq(mood) + " when you are " + act + "ly active.");
         }
       });
 
@@ -272,8 +270,15 @@ async function startAnalysis(lm, act, hours, glasses, m) {
           const topMood = getMostFreq(mood);
           const topActivity = getMostFreq(activity);
 
-          analysis.push("You are more likely to log " + topMood + " when you drink less than 8 glasses of water a day.");
-          analysis.push("You are usually " + topActivity + " active when you drink more than 8 glasses of water a day.");
+          let symbol = "";
+          if (lm == ">") {
+            symbol = "more than";
+          } else {
+            symbol = "less than";
+          }
+
+          analysis.push("You are more likely to log " + topMood + " when you drink " + symbol + " " + glasses + " glasses of water a day.");
+          analysis.push("You are usually " + topActivity + "ly active when you drink " + symbol + " " + glasses + " glasses of water a day.");
         }
       });
 
@@ -286,7 +291,7 @@ async function startAnalysis(lm, act, hours, glasses, m) {
           });
 
           const topDay = getMostFreq(days);
-          analysis.push("On " + topDay + "s you usually log bad moods");
+          analysis.push("On " + topDay + "s you usually log " + m + " moods");
         }
       });
 
