@@ -12,7 +12,7 @@ const admin = require("firebase-admin");
 // nodemailer
 const nodemailer = require("nodemailer");
 
-// init firestore
+// initialise firestore
 admin.initializeApp();
 const db = admin.firestore();
 
@@ -49,7 +49,7 @@ app.handle("init", (conv) => {
 });
 
 app.handle("checkLog", (conv) => {
-  // get most recent log date from db and compare with today's date
+  // get most recent log date from db and compare with today's date to see if user has logged already today
   const today = admin.firestore.Timestamp.now().toDate();
   return db.collection("users").doc(conv.user.params.uid).collection("mood_data")
       .orderBy("date", "desc").get().then((snapshot) => {
@@ -58,7 +58,7 @@ app.handle("checkLog", (conv) => {
 });
 
 app.handle("checkGPEmail", (conv) => {
-  // checks if the user has saved their GP's email in the past
+  // checks if the user has saved their GP's email to the db in the past
   return db.collection("users").doc(conv.user.params.uid).get().then((doc) => {
     if (doc.data().GP_email) {
       conv.session.params.gp = true;
@@ -69,6 +69,7 @@ app.handle("checkGPEmail", (conv) => {
 });
 
 app.handle("initLog", (conv) => {
+  // checks the boolean hasLoggedToday when the user wants to log
   if (conv.session.params.hasLoggedToday) {
     conv.add("Sorry, you have already logged your mood today. Say exit and come back tomorrow.");
   } else {
@@ -77,6 +78,7 @@ app.handle("initLog", (conv) => {
 });
 
 app.handle("sendDataToDB", (conv) => {
+  // formats JSON with logged variables and sends to db
   return db.collection("users").doc(conv.user.params.uid).collection("mood_data").add({
     date: admin.firestore.Timestamp.now(),
     mood: conv.session.params.mood_today,
@@ -89,6 +91,7 @@ app.handle("sendDataToDB", (conv) => {
 });
 
 app.handle("deliverAnalysis", (conv) => {
+  // sends back analysis from session storage as response
   if (conv.session.params.analysis) {
     conv.add("Okay here is your most recent analysis.\n" + conv.session.params.analysis.join(" "));
     conv.add("Would you like to use any other Mood Logger services?");
@@ -99,6 +102,7 @@ app.handle("deliverAnalysis", (conv) => {
 });
 
 app.handle("setGPEmail", (conv) => {
+  // saves the entered user's GP's email to the db
   if (conv.session.params.gp_email) {
     return db.collection("users").doc(conv.user.params.uid).set({
       GP_email: conv.session.params.gp_email,
@@ -110,6 +114,7 @@ app.handle("setGPEmail", (conv) => {
 });
 
 app.handle("sendToGP", (conv) => {
+  // retrieves user's logs and calls sendGPEmail
   return db.collection("users").doc(conv.user.params.uid).get().then((doc) => {
     if (doc.exists) {
       if (doc.data().GP_email) {
@@ -125,12 +130,15 @@ app.handle("sendToGP", (conv) => {
 });
 
 app.handle("viewLog", (conv) => {
+  // retrieves log from given date and sends back as a response
   const dateInput = conv.session.params.dateToView;
   const dateString = dateInput.year + "-" + dateInput.month + "-" + dateInput.day;
 
+  // initialise start and end of date given by user 
   const startOf = moment(dateString).startOf().toDate();
   const endOf = moment(startOf).endOf("day").toDate();
 
+  // gets logs
   return db.collection("users").doc(conv.user.params.uid).collection("mood_data").where("date", ">", startOf)
       .where("date", "<", endOf).get().then((snapshot) => {
         if (snapshot.empty) {
@@ -148,10 +156,10 @@ app.handle("viewLog", (conv) => {
       });
 });
 
-// log response
-const moodResponseGood = ["That's great!🌞\n", "🌞\n", "Wonderfull ☀️."];
+const moodResponseGood = ["That's great!🌞\n", "🌞\n", "Wonderful ☀️."];
 const moodResponseBad = ["That's too bad.", "I am sorry you are feeling this way 😥."];
 
+// dynamic responses to user mood log
 app.handle("reactToMood", (conv) => {
   if (conv.session.params.mood_today == "good") {
     conv.add(moodResponseGood[Math.floor(Math.random()*moodResponseGood.length)]);
@@ -160,6 +168,7 @@ app.handle("reactToMood", (conv) => {
   }
 });
 
+// dynamic responses to sleep log
 const sleepResponseGood = ["That sounds like a good night's sleep.", "You must be well rested 😊."];
 app.handle("reactToSleep", (conv) => {
   if (conv.session.params.hours_of_sleep < 7) {
@@ -171,6 +180,7 @@ app.handle("reactToSleep", (conv) => {
   }
 });
 
+// dynamic responses to water log
 const waterResponseGood = ["Yay hydration 😀!", "Nice work."];
 const waterResponseLow = ["Hmm you may need to drink more water.", "That's all?"];
 app.handle("reactToWater", (conv) => {
@@ -181,6 +191,7 @@ app.handle("reactToWater", (conv) => {
   }
 });
 
+// dynamic responses to activity log
 app.handle("reactToActivity", (conv) => {
   if (conv.session.params.exercise != "not active") {
     conv.add("Nice work 🏅!");
@@ -189,37 +200,38 @@ app.handle("reactToActivity", (conv) => {
   }
 });
 
-// 0 0 * * 0 --> Every 7 days
+// 0 0 * * 0 --> Cron Job Every 7 days
 exports.analyseMoodData = functions.pubsub.schedule("0 0 * * 0")
     .onRun(async (context) => {
+      // chooses random thresholds for each variable for analysis
       const lessOrMore = [">", "<"];
       const activity = ["mild, moderate"];
       const sleep = [6, 8];
       const glasses = [6, 8];
       const moods = ["okay", "bad", "good"];
 
-      // from https://www.w3resource.com/javascript-exercises/javascript-array-exercise-35.php
+      // help for random selection from:
+      // https://www.w3resource.com/javascript-exercises/javascript-array-exercise-35.php
       const randomSymbol = lessOrMore[Math.floor(Math.random()*lessOrMore.length)];
       const randomActivity = activity[Math.floor(Math.random()*activity.length)];
       const randomSleep = sleep[Math.floor(Math.random()*sleep.length)];
       const randomGlasses = glasses[Math.floor(Math.random()*glasses.length)];
       const randomMood = moods[Math.floor(Math.random()*moods.length)];
 
+      // call analysis function
       startAnalysis(randomSymbol, randomActivity, randomSleep, randomGlasses, randomMood);
     });
 
 /**
- * Does analysis
+ * Performs analysis and stores in Firestore
  * @param {string} lm - less or more
- * @param {string} act - less or more
- * @param {number} hours - less or more
- * @param {number} glasses - less or more
- * @param {string} m - less or more
+ * @param {string} act - activity
+ * @param {number} hours - hours of sleep
+ * @param {number} glasses - glasses of water
+ * @param {string} m - mood
  */
 async function startAnalysis(lm, act, hours, glasses, m) {
-  // iterate through each user
-  // get mood data within a certain time frame
-
+  // iterate through each user & get mood data 
   const users = db.collection("users");
 
   await users.get().then((snapshot) => {
@@ -242,6 +254,7 @@ async function startAnalysis(lm, act, hours, glasses, m) {
             symbol = "less than";
           }
 
+          // get most frequent mood
           const topMood = getMostFreq(mood);
           analysis.push("You are more likely to log " + topMood + " when you get " + symbol + " " + hours + " hours of sleep.");
         }
@@ -257,6 +270,7 @@ async function startAnalysis(lm, act, hours, glasses, m) {
             sleep.push(doc.data().sleep);
           });
 
+          // get most frequent sleep
           const topSleep = getMostFreq(sleep);
           analysis.push("When you sleep " + topSleep + " hours, you are more likely to be " + act + "ly active.");
           analysis.push("You are more likely to log " + getMostFreq(mood) + " when you are " + act + "ly active.");
@@ -274,7 +288,9 @@ async function startAnalysis(lm, act, hours, glasses, m) {
             activity.push(doc.data().activity);
           });
 
+          // get most frequent mood
           const topMood = getMostFreq(mood);
+          // get most frequent activity
           const topActivity = getMostFreq(activity);
 
           let symbol = "";
@@ -289,7 +305,7 @@ async function startAnalysis(lm, act, hours, glasses, m) {
         }
       });
 
-      // day & bad mood
+      // day & mood
       await users.doc(uid).collection("mood_data").where("mood", "==", m).get().then((snapshot) => {
         if (!snapshot.empty) {
           const days = [];
@@ -297,6 +313,7 @@ async function startAnalysis(lm, act, hours, glasses, m) {
             days.push(doc.data().date.toDate().toLocaleString("default", {weekday: "long"}));
           });
 
+          // get most frequent day
           const topDay = getMostFreq(days);
           analysis.push("On " + topDay + "s you usually log " + m + " moods");
         }
@@ -309,12 +326,14 @@ async function startAnalysis(lm, act, hours, glasses, m) {
           snapshot.forEach((doc) => {
             days.push(doc.data().date.toDate().toLocaleString("default", {weekday: "long"}));
           });
-
+          
+          // get most frequent day
           const topDay = getMostFreq(days);
           analysis.push("You are usually " + act + "ly active on" + topDay + "s.");
         }
       });
 
+      // save to db
       db.collection("users").doc(uid).collection("analysis").add({
         date: admin.firestore.Timestamp.now(),
         analysis: analysis,
@@ -333,6 +352,7 @@ async function startAnalysis(lm, act, hours, glasses, m) {
  * @param {string} uid - user uid
  */
 async function sendGPEmail(gpEmail, userName, userEmail, uid) {
+  // nodemailer & sendinblue credentials
   const key = require("./moodLoggerEmailKey.json");
   const transporter = nodemailer.createTransport({
     host: "smtp-relay.sendinblue.com",
@@ -355,6 +375,8 @@ async function sendGPEmail(gpEmail, userName, userEmail, uid) {
     if (!snapshot.empty) {
       snapshot.forEach((doc) => {
         const date = doc.data().date.toDate().toString().replace("GMT+0000 (Coordinated Universal Time)", "");
+        
+        // add to html
         body += "<tr><td>" + date + "</td>";
         body += "<td>" + doc.data().mood + "</td>";
         body += "<td>" + doc.data().water + "</td>";
@@ -365,6 +387,7 @@ async function sendGPEmail(gpEmail, userName, userEmail, uid) {
     body += "</table>";
   });
 
+  // construct mail object
   const mail = {
     from: "gilsenci@tcd.ie",
     to: gpEmail,
@@ -372,6 +395,7 @@ async function sendGPEmail(gpEmail, userName, userEmail, uid) {
     html: body,
   };
 
+  // send email
   return transporter.sendMail(mail, (error, info) => {
     if (error) {
       console.log(error.toString());
@@ -380,17 +404,17 @@ async function sendGPEmail(gpEmail, userName, userEmail, uid) {
 }
 
 /**
- * Helper function to analyseMoodData, finds most frequent element in the given array.
+ * Helper function to startAnalysis, finds most frequent element in the given array.
  * @param {Array} array - array
  * @return {(number|string)} - most frequent element
  */
 function getMostFreq(array) {
-  // help from https://javascript.plainenglish.io/how-to-find-the-most-frequent-element-in-an-array-in-javascript-c85119dc78d2
-  const hashmap = array.reduce((acc, val) => {
+  // with help from https://javascript.plainenglish.io/how-to-find-the-most-frequent-element-in-an-array-in-javascript-c85119dc78d2
+  const map = array.reduce((acc, val) => {
     acc[val] = (acc[val] || 0) + 1;
     return acc;
   }, {});
-  return Object.keys(hashmap).reduce((a, b) => hashmap[a] > hashmap[b] ? a : b);
+  return Object.keys(map).reduce((a, b) => map[a] > map[b] ? a : b);
 }
 
 exports.ActionsOnGoogleFulfillment = functions.https.onRequest(app);
